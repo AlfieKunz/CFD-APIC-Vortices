@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5541b07fced660347bfcdf45838e6dde, type: 3}
+  m_Name: GlobalSettings
+  m_EditorClassIdentifier: Assembly-CSharp::GlobalSettings
+  isRunning: 0
+  GridDimensions:
+    x: 60
+    y: 35
+  ParticleCount: 4655
+  RenderParticles: 1
+  TimeStep: 0.016666668
+  SyncTimeStepToSystem: 0
+  UpdateTimeStepSafety: 0
+  ProjectionStepSize: 0.0005
+  Stiffness: 0.17
+  gMagnitude: 50
+  gDirection: 270
+  MouseGravity: 0
+  PICFLIPRatio: 0
+  MouseRadius: 6
+  MouseStrength: 2.2
+  SpawnType: 3
+  InitialAngularMomentum: 0.5
+  TransferMethod: 2
