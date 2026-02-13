@@ -91,9 +91,11 @@ public class GlobalSettings : ScriptableObject {
 
     public enum ParticleSpawnType {
         LHSSquare,
+        LRRectangle,
         CentreSquare,
         CentreBottomRectangle,
         CentreCircle,
+        Wave,
         Random
     }
     public ParticleSpawnType SpawnType = ParticleSpawnType.LHSSquare;

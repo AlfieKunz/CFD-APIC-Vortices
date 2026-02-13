@@ -16,7 +16,7 @@ public partial class FluidSim {
 
     private readonly bool TimeSimulation = false;
     private readonly bool TrackAngularMomentum = true;
-    private readonly bool APICBoundarySafety = true;
+    private readonly bool APICBoundarySafety = false;
 
 
     //Quickly converts 2D to 1D indices for accessing grid values.
@@ -172,7 +172,6 @@ public partial class FluidSim {
                 SimulationTimer.Restart();
             }
 
-
             //Interpolates the grid velocities to the particles.
             InterpolateGridToParticles();
 
@@ -210,7 +209,7 @@ public partial class FluidSim {
                         SpinP = p.AngularMomentumLoss.x + p.AngularMomentumLoss.y;
                     }
                     SpinP *= CellSize * CellSize / 4f;
-                    TotalAngularMomentum += OrbitalP + SpinP;
+                    TotalAngularMomentum += math.abs(OrbitalP + SpinP);
                 }
                 TotalAngularMomentum /= ParticleCont.Length;
                 Debug.Log("Total Angular Momentum this frame: " + TotalAngularMomentum + "kgm^2s^-1 (per particle).");

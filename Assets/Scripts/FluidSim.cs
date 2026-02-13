@@ -126,6 +126,18 @@ public partial class FluidSim : MonoBehaviour {
                                  // just repeat the same but add a small buffer (0.5) to ensure that the two triangles grow together.
                             GridMap.DistanceSortValues[n] = i >= j ? i * GridWidth + j : j * GridWidth + i + 0.5f;
                             break;
+                        case GlobalSettings.ParticleSpawnType.LRRectangle:
+                            // Similar for the above, but we also place fluid on the RHS of the simulation, to get more vortex action.
+                            int iScaled = i < (GridWidth / 2f) ? i : GridWidth - i;
+                            GridMap.DistanceSortValues[n] = iScaled >= j ? iScaled * GridWidth + j : j * GridWidth + iScaled + 0.5f;
+                            break;
+                        case GlobalSettings.ParticleSpawnType.Wave:
+                            // Spawns particles in a wave structure, following MeanHeight + HeightDelta*cos(kx), both in units of grid cells.
+                            int MeanHeight = 25;
+                            int HeightDelta = 4;
+                            
+
+                            break;
                     }
                 }
             } else {

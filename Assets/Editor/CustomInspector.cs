@@ -8,6 +8,11 @@ using System;
 //Adds custom buttons to the GlobalSettings asset.
 [CustomEditor(typeof(GlobalSettings))]
 public class CustomInspector : Editor {
+
+    public override bool RequiresConstantRepaint() {
+        return true;
+    }
+    
     public override void OnInspectorGUI() {
         //Draws all the Global Settings controls.
         DrawDefaultInspector();
@@ -20,5 +25,6 @@ public class CustomInspector : Editor {
         else if (GUILayout.Button("Run Simulation")) {TargetScript.Run(); }
         else if (GUILayout.Button("Add Angular Force")) {TargetScript.AddAngularMomentum(); }
         else if (GUILayout.Button("Add Shear Force")) {TargetScript.AddShear(); }
+        else if (GUILayout.Button("Add Gravity Eruption")) {TargetScript.AddShear(); }
     }
 }
