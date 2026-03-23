@@ -23,23 +23,42 @@ public class PreconditionedConjugateGradient {
 
     private float Rho0 = 4f;
     public float StiffnessCoefficient = 1;
+    public bool PeriodicBCs = false;
 
 
-    private int GridWidth;
+    private int GridWidth, GridHeight;
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private int Grid2DFlattenIndex(int x, int y) => y * GridWidth + x;
+    private int Wrap1DIndex(int index) {
+        int x = index % GridWidth;
+        int y = index / GridWidth;
+        if (x <= 0) {
+            x += GridWidth - 2;
+        } else if (x >= GridWidth - 1) {
+            x -= GridWidth - 2;
+        }
+        if (y <= 0) {
+            y += GridHeight - 2;
+        } else if (y >= GridHeight - 1) {
+            y -= GridHeight - 2;
+        }
+        return y * GridWidth + x;
+    }
 
 
-    public PreconditionedConjugateGradient(int MaxSize, float CellSize, ref Grid GridMap, int GridWidth) {
+
+    public PreconditionedConjugateGradient(int MaxSize, float CellSize, bool NewBCs, ref Grid GridMap, int GridWidth, int GridHeight) {
         this.GridMap = GridMap;
         FluidCells = new int[MaxSize];
         this.GridWidth = GridWidth;
-        Clear(CellSize);
+        this.GridHeight = GridHeight;
+        Clear(CellSize, NewBCs);
     }
 
-    public void Clear(float NewCellSize) {
+    public void Clear(float NewCellSize, bool NewBCs) {
         Size = 0;
         StepSize = NewCellSize;
+        PeriodicBCs = NewBCs;
     }
 
     public void AddCell(int CellIndex) {
@@ -62,11 +81,20 @@ public class PreconditionedConjugateGradient {
         for (int i = 0; i < Size; i++) {
             // Loops over all neighbours using the cell's IndexInFluidCells lookup table.
             int FluidCellIndex = FluidCells[i];
-            int[] GridNeighbours = new int[] { FluidCellIndex - 1, FluidCellIndex + 1, FluidCellIndex - GridWidth, FluidCellIndex + GridWidth };
+            int4 GridNeighbours = new(FluidCellIndex - 1, FluidCellIndex + 1, FluidCellIndex - GridWidth, FluidCellIndex + GridWidth);
 
-            foreach (int NeighbourIndex in GridNeighbours) {
+            for (int k = 0; k < 4; k++) {
+                int NeighbourIndex = GridNeighbours[k];
+                bool NeighbourIsFluid = false;
                 if (GridMap.Type[NeighbourIndex] == 1) { // Fluid cell. Makes fluid cell NeighbourIndex the neighbour of fluid cell i
-                    //? It's quite annoying I can't also make i the neighbour of NeighbourIndex... Is this possible?
+                    NeighbourIsFluid = true;
+                } else if (PeriodicBCs && GridMap.Type[NeighbourIndex] == 0) {
+                    // Wraps the Neighbour Index around the grid.
+                    NeighbourIndex = Wrap1DIndex(NeighbourIndex);
+                    NeighbourIsFluid = GridMap.Type[NeighbourIndex] == 1;
+                }
+                if (NeighbourIsFluid) {
+                     //? It's quite annoying I can't also make i the neighbour of NeighbourIndex... Is this possible?
                     GridMap.Neighbours[FluidCellIndex, 0]++; // Each cell has one more neighbour.
                     GridMap.Neighbours[FluidCellIndex, GridMap.Neighbours[FluidCellIndex, 0]] = GridMap.IndexInFluidCells[NeighbourIndex];
                 }
@@ -92,8 +120,16 @@ public class PreconditionedConjugateGradient {
         for (int i = 0; i < Size; i++) {
             int n = FluidCells[i];
             float Divergence = GridMap.Velocity_GP[n].x + GridMap.Velocity_GP[n].y;
-            if (GridMap.Type[n - 1] != 0) { Divergence -= GridMap.Velocity_GP[n - 1].x; }
-            if (GridMap.Type[n - GridWidth] != 0) { Divergence -= GridMap.Velocity_GP[n - GridWidth].y; }
+            if (GridMap.Type[n - 1] != 0) {
+                Divergence -= GridMap.Velocity_GP[n - 1].x;
+            } else if (PeriodicBCs) {
+                Divergence -= GridMap.Velocity_GP[Wrap1DIndex(n - 1)].x;
+            }
+            if (GridMap.Type[n - GridWidth] != 0) {
+                Divergence -= GridMap.Velocity_GP[n - GridWidth].y;
+            } else if (PeriodicBCs) {
+                Divergence -= GridMap.Velocity_GP[Wrap1DIndex(n - GridWidth)].y;
+            }
             WeightedDivergence[i] = -StepSize * (Divergence - StiffnessCoefficient * (GridMap.Density[n] - Rho0)); // We make this negative as A is forced to be positive definite. Ap = d === -Ap = -d.
 
             // float normdiff = (Grid[n].Density - Rho0) / Rho0;
@@ -281,9 +317,11 @@ public class PreconditionedConjugateGradient {
             GridMap.Pressure[FluidCellIndex] = Pressure[i];
 
             // Attempts to retrive the neighbour to this cell's right & top, and add pressure gradients if found.
-            int NeighbourIndex = GridMap.IndexInFluidCells[FluidCellIndex + 1];
+            int WrappedIndex = PeriodicBCs ? Wrap1DIndex(FluidCellIndex + 1) : FluidCellIndex + 1;
+            int NeighbourIndex = GridMap.IndexInFluidCells[WrappedIndex];
             // If our fluid cell has solid neighbours, we need to explicitly check that the neighbour is not a solid. If it is, completely neglect velocity update (dp = 0).
-            if (GridMap.NonSolidNeighbourCount[FluidCellIndex] == 4 || GridMap.Type[FluidCellIndex + 1] != 0) {
+            // Note that, if we are using periodic boundary conditions, each cell will _always_ have 4 non-solid neighbours.
+            if (GridMap.NonSolidNeighbourCount[FluidCellIndex] == 4 || GridMap.Type[WrappedIndex] != 0) {
                 // Update velocity based on pressure gradient, using p[air] = 0.
                 GridMap.Velocity_GP[FluidCellIndex].x += Pressure[i] / StepSize;
                 if (NeighbourIndex >= 0) { // The cell is a fluid cell - update pressure gradient.
@@ -291,8 +329,9 @@ public class PreconditionedConjugateGradient {
                 }
             }
 
-            NeighbourIndex = GridMap.IndexInFluidCells[FluidCellIndex + GridWidth];
-            if (GridMap.NonSolidNeighbourCount[FluidCellIndex] == 4 || GridMap.Type[FluidCellIndex + GridWidth] != 0) {
+            WrappedIndex = PeriodicBCs ? Wrap1DIndex(FluidCellIndex + GridWidth) : FluidCellIndex + GridWidth;
+            NeighbourIndex = GridMap.IndexInFluidCells[WrappedIndex];
+            if (GridMap.NonSolidNeighbourCount[FluidCellIndex] == 4 || GridMap.Type[WrappedIndex] != 0) {
                 GridMap.Velocity_GP[FluidCellIndex].y += Pressure[i] / StepSize;
                 if (NeighbourIndex >= 0) { // The cell is a fluid cell - update pressure gradient.
                     GridMap.Velocity_GP[FluidCellIndex].y -= Pressure[NeighbourIndex] / StepSize;

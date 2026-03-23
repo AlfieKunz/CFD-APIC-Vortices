@@ -39,7 +39,7 @@ public class GlobalSettings : ScriptableObject {
             int SimResetCode = 0;
             if (SyncTimeStepToSystem != Previous.SyncTimeStepToSystem || (SyncTimeStepToSystem && TimeStep != Previous.TimeStep)) SimResetCode = 1;
             else if (ParticleCount != Previous.ParticleCount) SimResetCode = 2;
-            else if (math.any(GridDimensions != Previous.GridDimensions) || SpawnType != Previous.SpawnType) SimResetCode = 3;
+            else if (math.any(GridDimensions != Previous.GridDimensions) || SpawnType != Previous.SpawnType || PeriodicBCs != Previous.PeriodicBCs) SimResetCode = 3;
             SettingsChanged?.Invoke(SimResetCode);
         }
         //Make a new instance, in a way that won't recursively call OnValidate again :).
@@ -63,6 +63,7 @@ public class GlobalSettings : ScriptableObject {
     public bool SyncTimeStepToSystem = true;
 
     public bool UpdateTimeStepSafety = true;
+    public bool PeriodicBCs = true;
 
     [Range(0, 1)]
     public float ProjectionStepSize = 0.0005f;
@@ -101,6 +102,8 @@ public class GlobalSettings : ScriptableObject {
     public ParticleSpawnType SpawnType = ParticleSpawnType.LHSSquare;
     [Range(-5f, 5f)]
     public float InitialAngularMomentum = 0f;
+    [Min(0)]
+    public float InitialTGVVelocity = 0f;
 
     public enum TransferMethodType {
         PIC,

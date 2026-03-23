@@ -73,11 +73,12 @@ public partial class FluidSim : MonoBehaviour {
             CellSize = CameraController.WorldHeight / GridHeight;
             GridSize = GridWidth * GridHeight;
             SimCentre = new float2(GridWidth, GridHeight) * CellSize / 2f;
+            Debug.Log("Cellsize is: " + CellSize);
 
             GridMap = new Grid(GridSize, Settings.GridDimensions);
             SolidCellLookup = new int[GridSize];
             NonSolidCellsOrdered = new int[GridSize];
-            PCG = new PreconditionedConjugateGradient(GridSize, Settings.ProjectionStepSize, ref GridMap, GridWidth);
+            PCG = new PreconditionedConjugateGradient(GridSize, Settings.ProjectionStepSize, Settings.PeriodicBCs, ref GridMap, GridWidth, GridHeight);
         }
 
         int SolidCellBorder = 1;
@@ -132,11 +133,10 @@ public partial class FluidSim : MonoBehaviour {
                             GridMap.DistanceSortValues[n] = iScaled >= j ? iScaled * GridWidth + j : j * GridWidth + iScaled + 0.5f;
                             break;
                         case GlobalSettings.ParticleSpawnType.Wave:
-                            // Spawns particles in a wave structure, following MeanHeight + HeightDelta*cos(kx), both in units of grid cells.
-                            int MeanHeight = 25;
-                            int HeightDelta = 4;
-                            
-
+                            // Spawns particles in a wave structure, following A + HeightDelta*cos(kx), both in units of grid cells.
+                            int ModeCount = 3;
+                            int HeightDelta = 5;
+                            GridMap.DistanceSortValues[n] = j - HeightDelta * math.sin(ModeCount * i * math.PI/GridWidth);
                             break;
                     }
                 }
@@ -151,13 +151,15 @@ public partial class FluidSim : MonoBehaviour {
             //Truncates Cell Lookup arrays.
             Array.Resize<int>(ref SolidCellLookup, SolidCellCount);
             Array.Resize<int>(ref NonSolidCellsOrdered, NonSolidCellCount);
-            for (int n = 0; n < GridMap.Length(); n++) {
-                if (GridMap.Type[n] == 0) {
-                    (int i, int j) = Grid1DUnfoldIndex(n);
-                    if (i > 0) { GridMap.NonSolidNeighbourCount[n - 1] -= 1; }
-                    if (i < GridWidth - 1) { GridMap.NonSolidNeighbourCount[n + 1] -= 1; }
-                    if (j > 0) { GridMap.NonSolidNeighbourCount[n - GridWidth] -= 1; }
-                    if (j < GridHeight - 1) { GridMap.NonSolidNeighbourCount[n + GridWidth] -= 1; }
+            if (!Settings.PeriodicBCs) {
+                for (int n = 0; n < GridMap.Length(); n++) {
+                    if (GridMap.Type[n] == 0) {
+                        (int i, int j) = Grid1DUnfoldIndex(n);
+                        if (i > 0) { GridMap.NonSolidNeighbourCount[n - 1] -= 1; }
+                        if (i < GridWidth - 1) { GridMap.NonSolidNeighbourCount[n + 1] -= 1; }
+                        if (j > 0) { GridMap.NonSolidNeighbourCount[n - GridWidth] -= 1; }
+                        if (j < GridHeight - 1) { GridMap.NonSolidNeighbourCount[n + GridWidth] -= 1; }
+                    }
                 }
             }
             // Sorts non solic cells by distance to sim centre.
@@ -205,6 +207,22 @@ public partial class FluidSim : MonoBehaviour {
                     ParticleCont[i].cOperator_y = new float2(Settings.InitialAngularMomentum, 0);
                 }
             }
+            if (Settings.InitialTGVVelocity != 0f) {
+                float2 Mode = new(1f, 1f);
+                float2 SinMultiplier = 2 * math.PI * new float2(Mode.x / (GridWidth - 2f), Mode.y / (GridHeight - 2f));
+                float2 ScaledPos = ParticleCont[i].pos / CellSize - new float2(1f, 1f);
+
+                ParticleCont[i].velocity.x = Settings.InitialTGVVelocity * math.sin(SinMultiplier.x * ScaledPos.x) * math.cos(SinMultiplier.y * ScaledPos.y);
+                ParticleCont[i].velocity.y = -Settings.InitialTGVVelocity * math.cos(SinMultiplier.x * ScaledPos.x) * math.sin(SinMultiplier.y * ScaledPos.y);
+                if (Settings.TransferMethod == GlobalSettings.TransferMethodType.AffinePIC) {
+                    ParticleCont[i].cOperator_x = Settings.InitialTGVVelocity * new float2(
+                        SinMultiplier.x * math.cos(SinMultiplier.x * ScaledPos.x) * math.cos(SinMultiplier.y * ScaledPos.y),   // du/dx
+                        -SinMultiplier.y * math.sin(SinMultiplier.x * ScaledPos.x) * math.sin(SinMultiplier.y * ScaledPos.y));  // du/dy
+                    ParticleCont[i].cOperator_y = Settings.InitialTGVVelocity * new float2(
+                        SinMultiplier.x * math.sin(SinMultiplier.x * ScaledPos.x) * math.sin(SinMultiplier.y * ScaledPos.y),   // dv/dx
+                        -SinMultiplier.y * math.cos(SinMultiplier.x * ScaledPos.x) * math.cos(SinMultiplier.y * ScaledPos.y));  // dv/dy
+                }
+            }
 
             ParticleCont[i].SetGridPosVars(CellSize);
             ParticleCellCount++;
@@ -214,7 +232,7 @@ public partial class FluidSim : MonoBehaviour {
         }
 
 
-        PCG.Clear(Settings.ProjectionStepSize);
+        PCG.Clear(Settings.ProjectionStepSize, Settings.PeriodicBCs);
         float StiffnessBuffer = Settings.Stiffness;
         Settings.Stiffness = 1;
         InterpolateParticlesToGrid();

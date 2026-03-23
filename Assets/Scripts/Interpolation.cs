@@ -9,6 +9,29 @@ using System.Linq;
 
 public partial class FluidSim {
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int GetIndexWrapped(int x, int y) {
+        if (Settings.PeriodicBCs) {
+            if (x <= 0) {
+                x += GridWidth - 2;
+            } else if (x >= GridWidth - 1) {
+                x -= GridWidth - 2;
+            }
+            if (y <= 0) {
+                y += GridHeight - 2;
+            } else if (y >= GridHeight - 1) {
+                y -= GridHeight - 2;
+            }
+        }
+        return y * GridWidth + x;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int4 GetGridIndices(int2 index) {
+        return new(GetIndexWrapped(index.x, index.y), GetIndexWrapped(index.x + 1, index.y), GetIndexWrapped(index.x, index.y + 1), GetIndexWrapped(index.x + 1, index.y + 1));
+    }
+
+
     //Functions to Bilinearly Interpolate between all the particles, and all the cells in the grid, using a weighted average.
     //This also handles the classification of cells (ie: setting them as either fluid or air cells).
     public void InterpolateParticlesToGrid() {
@@ -46,7 +69,7 @@ public partial class FluidSim {
                 var (index, delta) = ParticleCont[i].GetStaggeredGridPosVars(n == 1, n == 2, CellSize); // Note that we are negating delta, for better use in affine calculations.
 
                 //Calculate the weights to each of the 4 neighbouring velocity components, //Calculate the weights to each of the 4 neighbouring velocity components, ensuring we zero out any solid cell contributions that arise from user forces and/or projection from the previous step.
-                int GridIndex = index.y * GridWidth + index.x;
+                int4 GridIndices = GetGridIndices(index);
                 float w1 = (1 + delta.x) * (1 + delta.y);
                 float w2 = -(1 + delta.x) * delta.y;
                 float w3 = delta.x * delta.y;
@@ -67,46 +90,46 @@ public partial class FluidSim {
                 }
                 float cDotd = math.dot(c, delta) * CellSize;
 
-                if (GridMap.Type[GridIndex] == 0) w1 = 0;
-                if (GridMap.Type[GridIndex + GridWidth] == 0) w2 = 0;
-                if (GridMap.Type[GridIndex + GridWidth + 1] == 0) w3 = 0;
-                if (GridMap.Type[GridIndex + 1] == 0) w4 = 0;
+                if (!Settings.PeriodicBCs) {
+                    if (GridMap.Type[GridIndices.x] == 0) w1 = 0;
+                    if (GridMap.Type[GridIndices.z] == 0) w2 = 0;
+                    if (GridMap.Type[GridIndices.w] == 0) w3 = 0;
+                    if (GridMap.Type[GridIndices.y] == 0) w4 = 0;
+                }
 
                 //Updates the 4 neighbouring grid cell velocity values, and total weights.
                 if (n == 1) {
                     //Updates x component.
                     float vComponent = ParticleCont[i].velocity.x;
-                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndex].x, w1 * (vComponent + cDotd));
-                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndex].x, w1);
+                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndices.x].x, w1 * (vComponent + cDotd));
+                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndices.x].x, w1);
 
-                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndex + 1].x, w4 * (vComponent + cDotd + (c.x * CellSize)));
-                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndex + 1].x, w4);
+                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndices.y].x, w4 * (vComponent + cDotd + (c.x * CellSize)));
+                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndices.y].x, w4);
 
-                    GridIndex += GridWidth;
                     cDotd += c.y * CellSize;
 
-                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndex].x, w2  * (vComponent + cDotd));
-                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndex].x, w2);
+                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndices.z].x, w2  * (vComponent + cDotd));
+                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndices.z].x, w2);
 
-                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndex + 1].x, w3 * (vComponent + cDotd + (c.x * CellSize)));
-                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndex + 1].x, w3);
+                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndices.w].x, w3 * (vComponent + cDotd + (c.x * CellSize)));
+                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndices.w].x, w3);
                 } else {
                     //Updates y component.
                     float vComponent = ParticleCont[i].velocity.y;
-                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndex].y, w1 * (vComponent + cDotd));
-                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndex].y, w1);
+                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndices.x].y, w1 * (vComponent + cDotd));
+                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndices.x].y, w1);
 
-                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndex + 1].y, w4 * (vComponent + cDotd + (c.x * CellSize)));
-                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndex + 1].y, w4);
+                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndices.y].y, w4 * (vComponent + cDotd + (c.x * CellSize)));
+                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndices.y].y, w4);
 
-                    GridIndex += GridWidth;
                     cDotd += c.y * CellSize;
 
-                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndex].y, w2 * (vComponent + cDotd));
-                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndex].y, w2);
+                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndices.z].y, w2 * (vComponent + cDotd));
+                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndices.z].y, w2);
 
-                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndex + 1].y, w3 * (vComponent + cDotd + (c.x * CellSize)));
-                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndex + 1].y, w3);
+                    RaceConditionAdd(ref GridMap.Velocity_PG[GridIndices.w].y, w3 * (vComponent + cDotd + (c.x * CellSize)));
+                    RaceConditionAdd(ref GridMap.TotalWeight[GridIndices.w].y, w3);
                 }
 
             }
@@ -114,24 +137,11 @@ public partial class FluidSim {
             // Density interpolation (weighted from the centre of each cell, hence staggering by both pos).
             if (Settings.Stiffness > 0) {
                 var (index, delta) = ParticleCont[i].GetStaggeredGridPosVars(true, true, CellSize);
-                int GridIndex = index.y * GridWidth + index.x;
-                if (GridMap.Type[GridIndex] == 1) {
-                    float w1 = (1 + delta.x) * (1 + delta.y);
-                    RaceConditionAdd(ref GridMap.Density[GridIndex], w1);
-                }
-                if (GridMap.Type[GridIndex + 1] == 1) {
-                    float w4 = -(1 + delta.x) * delta.y;
-                    RaceConditionAdd(ref GridMap.Density[GridIndex + 1], w4);
-                }
-                GridIndex += GridWidth;
-                if (GridMap.Type[GridIndex] == 1) {
-                    float w2 = delta.x * delta.y;
-                    RaceConditionAdd(ref GridMap.Density[GridIndex], w2);
-                }
-                if (GridMap.Type[GridIndex + 1] == 1) {
-                    float w3 = -delta.x * (1 + delta.y);
-                    RaceConditionAdd(ref GridMap.Density[GridIndex + 1], w3);
-                }
+                int4 GridIndices = GetGridIndices(index);
+                if (GridMap.Type[GridIndices.x] == 1) RaceConditionAdd(ref GridMap.Density[GridIndices.x], (1 + delta.x) * (1 + delta.y));
+                if (GridMap.Type[GridIndices.z] == 1) RaceConditionAdd(ref GridMap.Density[GridIndices.z], -(1 + delta.x) * delta.y);
+                if (GridMap.Type[GridIndices.w] == 1) RaceConditionAdd(ref GridMap.Density[GridIndices.w], delta.x * delta.y);
+                if (GridMap.Type[GridIndices.y] == 1) RaceConditionAdd(ref GridMap.Density[GridIndices.y], -delta.x * (1 + delta.y));
             }
         });
 
@@ -168,7 +178,7 @@ public partial class FluidSim {
             for (int n = 1; n <= 2; n++) {
                 //a : 1 = x component, 2 = y component.
                 var (index, delta) = ParticleCont[i].GetStaggeredGridPosVars(n == 1, n == 2, CellSize);
-                int GridIndex = index.y * GridWidth + index.x;
+                int4 GridIndices = GetGridIndices(index);
 
                 //Calculate the weights to each of the 4 neighbouring velocity components (by assumption, we have zeroed out any solid cell contributions that arise from user forces and/or projection).
                 float w1 = (1 + delta.x) * (1 + delta.y);
@@ -182,18 +192,18 @@ public partial class FluidSim {
                     // in grid velocities cause a massive action of angular momentum conservation towards the top right corner of the simulation.
                     // Therefore, in the top row and rightward column of fuid cells, we resort to PIC, rather than APIC.
                     if (n == 1) {
-                        ParticleCont[i].cOperator_x = CalculateWeightGradient(GridIndex, delta, true);
-                        if (APICBoundarySafety && GridMap.Type[ParticleCont[i].GridIndex.x + 1] == 0) ParticleCont[i].cOperator_x.x = 0;
+                        ParticleCont[i].cOperator_x = CalculateWeightGradient(GridIndices, delta, true);
+                        if (APICBoundarySafety && !Settings.PeriodicBCs && GridMap.Type[Grid2DFlattenIndex(ParticleCont[i].GridIndex.x + 1, ParticleCont[i].GridIndex.y)] == 0) ParticleCont[i].cOperator_x.x = 0;
                     } else {
-                        ParticleCont[i].cOperator_y = CalculateWeightGradient(GridIndex, delta, false);
-                        if (APICBoundarySafety && GridMap.Type[ParticleCont[i].GridIndex.x + GridWidth] == 0) ParticleCont[i].cOperator_y.y = 0;
+                        ParticleCont[i].cOperator_y = CalculateWeightGradient(GridIndices, delta, false);
+                        if (APICBoundarySafety && !Settings.PeriodicBCs && GridMap.Type[Grid2DFlattenIndex(ParticleCont[i].GridIndex.x, ParticleCont[i].GridIndex.y + 1)] == 0) ParticleCont[i].cOperator_y.y = 0;
                     }
                 } else if (Settings.TransferMethod == GlobalSettings.TransferMethodType.RigidPIC) {
                     float4 w = new(w1, w4, w2, w3);
                     if (n == 1) {
-                        ParticleCont[i].AngularMomentumLoss.x = CalculateRigidMomentumLoss(GridIndex, delta * CellSize, w, true);
+                        ParticleCont[i].AngularMomentumLoss.x = CalculateRigidMomentumLoss(GridIndices, delta * CellSize, w, true);
                     } else {
-                        ParticleCont[i].AngularMomentumLoss.y = CalculateRigidMomentumLoss(GridIndex, delta * CellSize, w, false);
+                        ParticleCont[i].AngularMomentumLoss.y = CalculateRigidMomentumLoss(GridIndices, delta * CellSize, w, false);
                     }
                 }
 
@@ -203,22 +213,22 @@ public partial class FluidSim {
                 
                 if (n == 1) {
                     if (FLIPWeight < 1) { //Adds PIC component.
-                        NewVelocityLerp = (1 - FLIPWeight) * (w1 * GridMap.Velocity_GP[GridIndex].x + w2 * GridMap.Velocity_GP[GridIndex + GridWidth].x
-                        + w3 * GridMap.Velocity_GP[GridIndex + GridWidth + 1].x + w4 * GridMap.Velocity_GP[GridIndex + 1].x) / TotalWeight;
+                        NewVelocityLerp = (1 - FLIPWeight) * (w1 * GridMap.Velocity_GP[GridIndices.x].x + w2 * GridMap.Velocity_GP[GridIndices.z].x
+                        + w3 * GridMap.Velocity_GP[GridIndices.w].x + w4 * GridMap.Velocity_GP[GridIndices.y].x) / TotalWeight;
                     }
                     if (FLIPWeight > 0) { //Adds FLIP component.
-                        NewVelocityLerp += FLIPWeight * (ParticleCont[i].velocity.x + (w1 * GridMap.GetVelocityChange(GridIndex).x + w2 * GridMap.GetVelocityChange(GridIndex + GridWidth).x
-                        + w3 * GridMap.GetVelocityChange(GridIndex + GridWidth + 1).x + w4 * GridMap.GetVelocityChange(GridIndex + 1).x) / TotalWeight);
+                        NewVelocityLerp += FLIPWeight * (ParticleCont[i].velocity.x + (w1 * GridMap.GetVelocityChange(GridIndices.x).x + w2 * GridMap.GetVelocityChange(GridIndices.z).x
+                        + w3 * GridMap.GetVelocityChange(GridIndices.w).x + w4 * GridMap.GetVelocityChange(GridIndices.y).x) / TotalWeight);
                     }
                     ParticleCont[i].velocity.x = NewVelocityLerp;
                 } else {
                     if (FLIPWeight < 1) { //Adds PIC component.
-                        NewVelocityLerp = (1 - FLIPWeight) * (w1 * GridMap.Velocity_GP[GridIndex].y + w2 * GridMap.Velocity_GP[GridIndex + GridWidth].y
-                        + w3 * GridMap.Velocity_GP[GridIndex + GridWidth + 1].y + w4 * GridMap.Velocity_GP[GridIndex + 1].y) / TotalWeight;
+                        NewVelocityLerp = (1 - FLIPWeight) * (w1 * GridMap.Velocity_GP[GridIndices.x].y + w2 * GridMap.Velocity_GP[GridIndices.z].y
+                        + w3 * GridMap.Velocity_GP[GridIndices.w].y + w4 * GridMap.Velocity_GP[GridIndices.y].y) / TotalWeight;
                     }
                     if (FLIPWeight > 0) { //Adds FLIP component.
-                        NewVelocityLerp += FLIPWeight * (ParticleCont[i].velocity.y + (w1 * GridMap.GetVelocityChange(GridIndex).y + w2 * GridMap.GetVelocityChange(GridIndex + GridWidth).y
-                        + w3 * GridMap.GetVelocityChange(GridIndex + GridWidth + 1).y + w4 * GridMap.GetVelocityChange(GridIndex + 1).y) / TotalWeight);
+                        NewVelocityLerp += FLIPWeight * (ParticleCont[i].velocity.y + (w1 * GridMap.GetVelocityChange(GridIndices.x).y + w2 * GridMap.GetVelocityChange(GridIndices.z).y
+                        + w3 * GridMap.GetVelocityChange(GridIndices.w).y + w4 * GridMap.GetVelocityChange(GridIndices.y).y) / TotalWeight);
                     }
                     ParticleCont[i].velocity.y = NewVelocityLerp;
                 }
@@ -233,16 +243,16 @@ public partial class FluidSim {
 
     // GridIndex is the start Grid Position to get velocity components from. d represents the saturated distance from the particle
     // to the bottom left cell face.
-    private float CalculateRigidMomentumLoss(int GridIndex, float2 d, float4 w, bool HorizontalFace) { //d represents the signed distance from the particle to that grid index.
+    private float CalculateRigidMomentumLoss(int4 GridIndices, float2 d, float4 w, bool HorizontalFace) { //d represents the signed distance from the particle to that grid index.
         // Carries out the calculation "sum w (x_i - x_p) cross u_i".
         float4 UnweightedMomentum;
         if (HorizontalFace) {
-            UnweightedMomentum = new(GridMap.Velocity_GP[GridIndex].x, GridMap.Velocity_GP[GridIndex + 1].x, GridMap.Velocity_GP[GridIndex + GridWidth].x, GridMap.Velocity_GP[GridIndex + GridWidth + 1].x);
+            UnweightedMomentum = new(GridMap.Velocity_GP[GridIndices.x].x, GridMap.Velocity_GP[GridIndices.y].x, GridMap.Velocity_GP[GridIndices.z].x, GridMap.Velocity_GP[GridIndices.w].x);
             UnweightedMomentum.xy *= d.y;
             UnweightedMomentum.zw *= d.y + CellSize;
             return -math.dot(w, UnweightedMomentum);
         } else {
-            UnweightedMomentum = new(GridMap.Velocity_GP[GridIndex].y, GridMap.Velocity_GP[GridIndex + 1].y, GridMap.Velocity_GP[GridIndex + GridWidth].y, GridMap.Velocity_GP[GridIndex + GridWidth + 1].y);
+            UnweightedMomentum = new(GridMap.Velocity_GP[GridIndices.x].y, GridMap.Velocity_GP[GridIndices.y].y, GridMap.Velocity_GP[GridIndices.z].y, GridMap.Velocity_GP[GridIndices.w].y);
             UnweightedMomentum.xz *= d.x;
             UnweightedMomentum.yw *= d.x + CellSize;
             return math.dot(w, UnweightedMomentum);
@@ -259,7 +269,7 @@ public partial class FluidSim {
     }
 
 
-    private float2 CalculateWeightGradient(int GridIndex, float2 d, bool HorizontalFace) { //d represents the signed distance from the particle to that grid index.
+    private float2 CalculateWeightGradient(int4 GridIndices, float2 d, bool HorizontalFace) { //d represents the signed distance from the particle to that grid index.
         // Carries out the operation c = nabla w u.x or c = nabla w u.y.
         // Note that, from d.x, d.y being in range [-1,1], and the first grid cell always being to the bottom-left of the particle, we can always determine its sign as -.
         float absdx = 1 + d.x; // absdx1 = 1 - math.abs(d.x + 1) = -d.x;
@@ -269,9 +279,9 @@ public partial class FluidSim {
         float4 c_y = new(-absdx, d.x, absdx, -d.x);
         float4 GridVelocities;
         if (HorizontalFace) {
-            GridVelocities = new(GridMap.Velocity_GP[GridIndex].x, GridMap.Velocity_GP[GridIndex + 1].x, GridMap.Velocity_GP[GridIndex + GridWidth].x, GridMap.Velocity_GP[GridIndex + GridWidth + 1].x);
+            GridVelocities = new(GridMap.Velocity_GP[GridIndices.x].x, GridMap.Velocity_GP[GridIndices.y].x, GridMap.Velocity_GP[GridIndices.z].x, GridMap.Velocity_GP[GridIndices.w].x);
         } else {
-            GridVelocities = new(GridMap.Velocity_GP[GridIndex].y, GridMap.Velocity_GP[GridIndex + 1].y, GridMap.Velocity_GP[GridIndex + GridWidth].y, GridMap.Velocity_GP[GridIndex + GridWidth + 1].y);
+            GridVelocities = new(GridMap.Velocity_GP[GridIndices.x].y, GridMap.Velocity_GP[GridIndices.y].y, GridMap.Velocity_GP[GridIndices.z].y, GridMap.Velocity_GP[GridIndices.w].y);
         }
                 
         return new float2(math.dot(c_x, GridVelocities), math.dot(c_y, GridVelocities)) / CellSize; //! should be -??
