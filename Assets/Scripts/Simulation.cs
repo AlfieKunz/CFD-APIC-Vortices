@@ -20,11 +20,7 @@ public partial class FluidSim {
         AngularMomentum,
         KineticEnergy
     }
-<<<<<<< HEAD
     private TrackableQuantity SimTracker = TrackableQuantity.None;
-=======
-    private TrackableQuantity SimTracker = TrackableQuantity.KineticEnergy;
->>>>>>> ee8689b5c40ab30064db718a37539292ae16117c
     private readonly bool APICBoundarySafety = true;
 
 
