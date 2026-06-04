@@ -75,6 +75,7 @@ public partial class FluidSim : MonoBehaviour {
             CellSize = CameraController.WorldHeight / GridHeight;
             GridSize = GridWidth * GridHeight;
             SimCentre = new float2(GridWidth, GridHeight) * CellSize / 2f;
+            Debug.Log("Cellsize is: " + CellSize);
 
             GridMap = new Grid(GridSize, Settings.GridDimensions);
             SolidCellLookup = new int[GridSize];
@@ -135,8 +136,13 @@ public partial class FluidSim : MonoBehaviour {
                             break;
                         case GlobalSettings.ParticleSpawnType.Wave:
                             // Spawns particles in a wave structure, following A + HeightDelta*cos(kx), both in units of grid cells.
+<<<<<<< HEAD
                             int ModeCount = 5;
                             int HeightDelta = 15;
+=======
+                            int ModeCount = 3;
+                            int HeightDelta = 5;
+>>>>>>> ee8689b5c40ab30064db718a37539292ae16117c
                             GridMap.DistanceSortValues[n] = j - HeightDelta * math.sin(ModeCount * i * math.PI/GridWidth);
                             break;
                     }
@@ -215,6 +221,17 @@ public partial class FluidSim : MonoBehaviour {
 
                 ParticleCont[i].velocity.x = Settings.InitialTGVVelocity * math.sin(SinMultiplier.x * ScaledPos.x) * math.cos(SinMultiplier.y * ScaledPos.y);
                 ParticleCont[i].velocity.y = -Settings.InitialTGVVelocity * math.cos(SinMultiplier.x * ScaledPos.x) * math.sin(SinMultiplier.y * ScaledPos.y);
+<<<<<<< HEAD
+=======
+                if (Settings.TransferMethod == GlobalSettings.TransferMethodType.AffinePIC) {
+                    ParticleCont[i].cOperator_x = Settings.InitialTGVVelocity * new float2(
+                        SinMultiplier.x * math.cos(SinMultiplier.x * ScaledPos.x) * math.cos(SinMultiplier.y * ScaledPos.y),   // du/dx
+                        -SinMultiplier.y * math.sin(SinMultiplier.x * ScaledPos.x) * math.sin(SinMultiplier.y * ScaledPos.y));  // du/dy
+                    ParticleCont[i].cOperator_y = Settings.InitialTGVVelocity * new float2(
+                        SinMultiplier.x * math.sin(SinMultiplier.x * ScaledPos.x) * math.sin(SinMultiplier.y * ScaledPos.y),   // dv/dx
+                        -SinMultiplier.y * math.cos(SinMultiplier.x * ScaledPos.x) * math.cos(SinMultiplier.y * ScaledPos.y));  // dv/dy
+                }
+>>>>>>> ee8689b5c40ab30064db718a37539292ae16117c
             }
 
             ParticleCont[i].SetGridPosVars(CellSize);
