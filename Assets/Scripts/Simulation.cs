@@ -15,8 +15,13 @@ public partial class FluidSim {
     private bool GPUReadyFlag = false; //Flags when the simulation tells the GPU to update particle positions before rendering.
 
     private readonly bool TimeSimulation = false;
-    private readonly bool TrackAngularMomentum = true;
-    private readonly bool APICBoundarySafety = false;
+    public enum TrackableQuantity {
+        None,
+        AngularMomentum,
+        KineticEnergy
+    }
+    private TrackableQuantity SimTracker = TrackableQuantity.None;
+    private readonly bool APICBoundarySafety = true;
 
 
     //Quickly converts 2D to 1D indices for accessing grid values.
@@ -67,7 +72,7 @@ public partial class FluidSim {
                 SimulationTimer.Restart();
             }
 
-            PCG.Clear(Settings.ProjectionStepSize);
+            PCG.Clear(Settings.ProjectionStepSize, Settings.PeriodicBCs);
             //Interpolates the grid velocities to the particles.
             InterpolateParticlesToGrid();
 
@@ -130,20 +135,23 @@ public partial class FluidSim {
 
 
             //Enforce Dirichlet Boundary Conditions - consider all neighbours of solid cells, and remove component facing into those cells.
-            foreach (int Index in SolidCellLookup) {
-                (int x, int y) = Grid1DUnfoldIndex(Index);
-                if (x > 0 && GridMap.Velocity_GP[Index - 1].x > 0) {
-                    //Stops LHS cell from having positive rightward velocity.
-                    GridMap.Velocity_GP[Index - 1].x = 0;
+            if (!Settings.PeriodicBCs) {
+                foreach (int Index in SolidCellLookup) {
+                    (int x, int y) = Grid1DUnfoldIndex(Index);
+                    if (x > 0 && GridMap.Velocity_GP[Index - 1].x > 0) {
+                        //Stops LHS cell from having positive rightward velocity.
+                        GridMap.Velocity_GP[Index - 1].x = 0;
+                    }
+                    if (y > 0 && GridMap.Velocity_GP[Index - GridWidth].y > 0) {
+                        //Stops bottom cell from having positive upward velocity.
+                        GridMap.Velocity_GP[Index - GridWidth].y = 0;
+                    }
+                    //Stops RHS and top cell from having negative velocity components, pointing inside the solid cell.
+                    if (GridMap.Velocity_GP[Index].x < 0) GridMap.Velocity_GP[Index].x = 0;
+                    if (GridMap.Velocity_GP[Index].y < 0) GridMap.Velocity_GP[Index].y = 0;
                 }
-                if (y > 0 && GridMap.Velocity_GP[Index - GridWidth].y > 0) {
-                    //Stops bottom cell from having positive upward velocity.
-                    GridMap.Velocity_GP[Index - GridWidth].y = 0;
-                }
-                //Stops RHS and top cell from having negative velocity components, pointing inside the solid cell.
-                if (GridMap.Velocity_GP[Index].x < 0) GridMap.Velocity_GP[Index].x = 0;
-                if (GridMap.Velocity_GP[Index].y < 0) GridMap.Velocity_GP[Index].y = 0;
             }
+            
 
 
             if (TimeSimulation) {
@@ -197,9 +205,11 @@ public partial class FluidSim {
 
         SimulationTime += Settings.TimeStep;
 
-        if (TrackAngularMomentum) {
-                float TotalAngularMomentum = 0f;
-                foreach (Particle p in ParticleCont) {
+        if (SimTracker != TrackableQuantity.None) {
+            float SumQuantity = 0f;
+            foreach (Particle p in ParticleCont) {
+
+                if (SimTracker == TrackableQuantity.AngularMomentum) {
                     float2 PositionToCentre = p.pos - SimCentre;
                     float OrbitalP = PositionToCentre.x * p.velocity.y - PositionToCentre.y * p.velocity.x;
                     float SpinP = 0f;
@@ -209,16 +219,28 @@ public partial class FluidSim {
                         SpinP = p.AngularMomentumLoss.x + p.AngularMomentumLoss.y;
                     }
                     SpinP *= CellSize * CellSize / 4f;
-                    TotalAngularMomentum += math.abs(OrbitalP + SpinP);
-                }
-                TotalAngularMomentum /= ParticleCont.Length;
-                Debug.Log("Total Angular Momentum this frame: " + TotalAngularMomentum + "kgm^2s^-1 (per particle).");
+                    SumQuantity += math.abs(OrbitalP + SpinP);
 
-                //Writes to a file.
-                if (DataWriter != null) {
-                    DataWriter.WriteLine($"{SimulationTime},{TotalAngularMomentum}");
+                } else if (SimTracker == TrackableQuantity.KineticEnergy) {
+                    float LinearKE = math.dot(p.velocity, p.velocity);
+                    float AngularKE = 0f;
+                    if (Settings.TransferMethod == GlobalSettings.TransferMethodType.AffinePIC) {
+                        // Uses the Frobenius norm (squared) of the C matrix (c_x, c_y) for the energy calculations, weighted
+                        // by CellSize * CellSize / 4f to convert into world coordinates.
+                        AngularKE = math.dot(p.cOperator_x, p.cOperator_x) + math.dot(p.cOperator_y, p.cOperator_y);
+                    } else if (Settings.TransferMethod == GlobalSettings.TransferMethodType.RigidPIC) {
+                        AngularKE = math.dot(p.AngularMomentumLoss, p.AngularMomentumLoss);
+                    }
+                    AngularKE *= CellSize * CellSize / 4f;
+                    SumQuantity += (LinearKE + AngularKE) / 2; // KE = 0.5mv^2 - need to multiply by 0.5.
                 }
             }
+            SumQuantity /= ParticleCont.Length;
+            Debug.Log($"Total {SimTracker} this frame: {SumQuantity}kgm^2s^-1 (per particle).");
+
+            // Writes to a file.
+            DataWriter?.WriteLine($"{SimulationTime},{SumQuantity}");
+        }
 
         float NewDeltaTime = CellSize / MaxVelocityThisStep;
         if (NewDeltaTime < deltaTime) {
@@ -331,56 +353,72 @@ public partial class FluidSim {
             //? Hmmm, this really does seem like a lot of unnecessary computation... Are we sure this is really needed for most uses? *Probably...*
             int NewGridPosX = (int)(ParticleCont[i].pos.x / CellSize);
             int NewGridPosY = (int)(ParticleCont[i].pos.y / CellSize);
-            bool ParticleInBounds = (NewGridPosX >= 0) && (NewGridPosX < GridWidth) && (NewGridPosY >= 0) && (NewGridPosY < GridHeight);
-            bool ParticleInSolid = !ParticleInBounds || GridMap.Type[Grid2DFlattenIndex(NewGridPosX, NewGridPosY)] == 0;
-            if (!ParticleInSolid) {
-                // If the particle is incredibly close to colliding with the solid, we will likely get numerical errors when interpolating through cells
-                // (cannot access solid cell - fluid cell gets tiny to no contribution, leading to division by tiny numbers).
-                float NewDeltaGridX = ParticleCont[i].pos.x % CellSize;
-                float NewDeltaGridY = ParticleCont[i].pos.y % CellSize;
-                float CollisionDistanceThreshold = 1e-10f;
-                if (NewDeltaGridX < CollisionDistanceThreshold || NewDeltaGridY < CollisionDistanceThreshold) {
-                    // Checks if there is a solid cell at (x-1, y-1).
-                    if (GridMap.Type[Grid2DFlattenIndex(NewGridPosX - 1, NewGridPosY - 1)] == 0) { ParticleInSolid = true; }
+
+            if (Settings.PeriodicBCs) {
+                // Transports the particle to the other side of the grid.
+                if (NewGridPosX < 1) {
+                    ParticleCont[i].pos.x += (GridWidth - 2) * CellSize;
+                } else if (NewGridPosX >= GridWidth - 1) {
+                    ParticleCont[i].pos.x -= (GridWidth - 2) * CellSize;
                 }
-                if ((CellSize - NewDeltaGridX) < CollisionDistanceThreshold || (CellSize - NewDeltaGridY) < CollisionDistanceThreshold) {
-                    // Checks if there is a solid cell at (x+1, y+1).
-                    ParticleInSolid = GridMap.Type[Grid2DFlattenIndex(NewGridPosX + 1, NewGridPosY + 1)] == 0;
+                if (NewGridPosY < 1) {
+                    ParticleCont[i].pos.y += (GridHeight - 2) * CellSize;
+                } else if (NewGridPosY >= GridHeight - 1) {
+                    ParticleCont[i].pos.y -= (GridHeight - 2) * CellSize;
+                }
+            } else {
+                bool ParticleInBounds = (NewGridPosX >= 0) && (NewGridPosX < GridWidth) && (NewGridPosY >= 0) && (NewGridPosY < GridHeight);
+                bool ParticleInSolid = !ParticleInBounds || GridMap.Type[Grid2DFlattenIndex(NewGridPosX, NewGridPosY)] == 0;
+                if (!ParticleInSolid) {
+                    // If the particle is incredibly close to colliding with the solid, we will likely get numerical errors when interpolating through cells
+                    // (cannot access solid cell - fluid cell gets tiny to no contribution, leading to division by tiny numbers).
+                    float NewDeltaGridX = ParticleCont[i].pos.x % CellSize;
+                    float NewDeltaGridY = ParticleCont[i].pos.y % CellSize;
+                    float CollisionDistanceThreshold = 1e-10f;
+                    if (NewDeltaGridX < CollisionDistanceThreshold || NewDeltaGridY < CollisionDistanceThreshold) {
+                        // Checks if there is a solid cell at (x-1, y-1).
+                        if (GridMap.Type[Grid2DFlattenIndex(NewGridPosX - 1, NewGridPosY - 1)] == 0) { ParticleInSolid = true; }
+                    }
+                    if ((CellSize - NewDeltaGridX) < CollisionDistanceThreshold || (CellSize - NewDeltaGridY) < CollisionDistanceThreshold) {
+                        // Checks if there is a solid cell at (x+1, y+1).
+                        ParticleInSolid = GridMap.Type[Grid2DFlattenIndex(NewGridPosX + 1, NewGridPosY + 1)] == 0;
+                    }
+                }
+                if (ParticleInSolid) {
+                    // The most recent iteration pushed the particle into a wall - push it back inside.
+                    // Finds the point of intersection where the particle hit the wall, then moves half a cell in the normal direction of this solid cell.
+                    float2 p_old = ParticleCont[i].pos - ChangeInPosition;
+
+                    // Finds the closest vertical cell boundary intersection point from p_old to p_new.
+                    float2 VerticalBoundaryPosition;
+                    bool VerticlePointsRightward = ChangeInPosition.x > 0;
+                    VerticalBoundaryPosition.x = CellSize * (ParticleCont[i].GridIndex.x + (VerticlePointsRightward ? 1 : 0));
+                    // Lambda represents the time for the particle to hit this specific spot - used to determine which boundary is closer.
+                    float lambdaVertical = math.abs(ChangeInPosition.x) < CollisionEpsilon ? 1e30f : (VerticalBoundaryPosition.x - p_old.x) / ChangeInPosition.x;
+
+                    // Finds the closest horizontal cell boundary intersection point from p_old to p_new.
+                    float2 HorizontalBoundaryPosition;
+                    bool HorizontalPointsUpwards = ChangeInPosition.y > 0;
+                    HorizontalBoundaryPosition.y = CellSize * (ParticleCont[i].GridIndex.y + (HorizontalPointsUpwards ? 1 : 0));
+                    float lambdaHorizontal = (math.abs(ChangeInPosition.y) < CollisionEpsilon) ? 1e30f : (HorizontalBoundaryPosition.y - p_old.y) / ChangeInPosition.y;
+
+                    // Gets the closest boundary point, then moves the particle normal 0.1*CellSize (into boundary layer).
+                    if (lambdaVertical < lambdaHorizontal) {
+                        // Vertical wall is closer in the particle's trajectory.
+                        VerticalBoundaryPosition.y = p_old.y + lambdaVertical * ChangeInPosition.y;
+                        ParticleCont[i].pos = VerticalBoundaryPosition + new float2(0.1f * CellSize, 0) * (VerticlePointsRightward ? -1f : 1f);
+                        //Debug.Log("Caught " + i + " Vertically: " + lambdaVertical + " " + lambdaHorizontal + " at cell: " + NewGridPosX + " " + NewGridPosY);
+                    } else {
+                        // Horizontal wall is closer in the particle's trajectory.
+                        HorizontalBoundaryPosition.x = p_old.x + lambdaHorizontal * ChangeInPosition.x;
+                        ParticleCont[i].pos = HorizontalBoundaryPosition + new float2(0, 0.1f * CellSize) * (HorizontalPointsUpwards ? -1f : 1f);
+                        //Debug.Log("Caught " + i + " Horizontally: " + lambdaVertical + " " + lambdaHorizontal + " at cell: " + NewGridPosX + " " + NewGridPosY);
+                    }
+                    ParticleCont[i].velocity = float2.zero; // Enforces boundary conditions again + the no-slip boundary condition.
+
                 }
             }
-            if (ParticleInSolid) {
-                // The most recent iteration pushed the particle into a wall - push it back inside.
-                // Finds the point of intersection where the particle hit the wall, then moves half a cell in the normal direction of this solid cell.
-                float2 p_old = ParticleCont[i].pos - ChangeInPosition;
 
-                // Finds the closest vertical cell boundary intersection point from p_old to p_new.
-                float2 VerticalBoundaryPosition;
-                bool VerticlePointsRightward = ChangeInPosition.x > 0;
-                VerticalBoundaryPosition.x = CellSize * (ParticleCont[i].GridIndex.x + (VerticlePointsRightward ? 1 : 0));
-                // Lambda represents the time for the particle to hit this specific spot - used to determine which boundary is closer.
-                float lambdaVertical = math.abs(ChangeInPosition.x) < CollisionEpsilon ? 1e30f : (VerticalBoundaryPosition.x - p_old.x) / ChangeInPosition.x;
-
-                // Finds the closest horizontal cell boundary intersection point from p_old to p_new.
-                float2 HorizontalBoundaryPosition;
-                bool HorizontalPointsUpwards = ChangeInPosition.y > 0;
-                HorizontalBoundaryPosition.y = CellSize * (ParticleCont[i].GridIndex.y + (HorizontalPointsUpwards ? 1 : 0));
-                float lambdaHorizontal = (math.abs(ChangeInPosition.y) < CollisionEpsilon) ? 1e30f : (HorizontalBoundaryPosition.y - p_old.y) / ChangeInPosition.y;
-
-                // Gets the closest boundary point, then moves the particle normal 0.1*CellSize (into boundary layer).
-                if (lambdaVertical < lambdaHorizontal) {
-                    // Vertical wall is closer in the particle's trajectory.
-                    VerticalBoundaryPosition.y = p_old.y + lambdaVertical * ChangeInPosition.y;
-                    ParticleCont[i].pos = VerticalBoundaryPosition + new float2(0.1f * CellSize, 0) * (VerticlePointsRightward ? -1f : 1f);
-                    //Debug.Log("Caught " + i + " Vertically: " + lambdaVertical + " " + lambdaHorizontal + " at cell: " + NewGridPosX + " " + NewGridPosY);
-                } else {
-                    // Horizontal wall is closer in the particle's trajectory.
-                    HorizontalBoundaryPosition.x = p_old.x + lambdaHorizontal * ChangeInPosition.x;
-                    ParticleCont[i].pos = HorizontalBoundaryPosition + new float2(0, 0.1f * CellSize) * (HorizontalPointsUpwards ? -1f : 1f);
-                    //Debug.Log("Caught " + i + " Horizontally: " + lambdaVertical + " " + lambdaHorizontal + " at cell: " + NewGridPosX + " " + NewGridPosY);
-                }
-                ParticleCont[i].velocity = float2.zero; // Enforces boundary conditions again + the no-slip boundary condition.
-
-            }
             ParticleCont[i].SetGridPosVars(CellSize); // Calibrates GridIndex and DeltaGrid for the new position.
 
             // ParticleInBounds = (ParticleCont[i].GridIndex.x >= 0) && (ParticleCont[i].GridIndex.x < GridWidth) && (ParticleCont[i].GridIndex.y >= 0) && (ParticleCont[i].GridIndex.y < GridHeight);
