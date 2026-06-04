@@ -136,13 +136,8 @@ public partial class FluidSim : MonoBehaviour {
                             break;
                         case GlobalSettings.ParticleSpawnType.Wave:
                             // Spawns particles in a wave structure, following A + HeightDelta*cos(kx), both in units of grid cells.
-<<<<<<< HEAD
                             int ModeCount = 5;
                             int HeightDelta = 15;
-=======
-                            int ModeCount = 3;
-                            int HeightDelta = 5;
->>>>>>> ee8689b5c40ab30064db718a37539292ae16117c
                             GridMap.DistanceSortValues[n] = j - HeightDelta * math.sin(ModeCount * i * math.PI/GridWidth);
                             break;
                     }
@@ -221,8 +216,6 @@ public partial class FluidSim : MonoBehaviour {
 
                 ParticleCont[i].velocity.x = Settings.InitialTGVVelocity * math.sin(SinMultiplier.x * ScaledPos.x) * math.cos(SinMultiplier.y * ScaledPos.y);
                 ParticleCont[i].velocity.y = -Settings.InitialTGVVelocity * math.cos(SinMultiplier.x * ScaledPos.x) * math.sin(SinMultiplier.y * ScaledPos.y);
-<<<<<<< HEAD
-=======
                 if (Settings.TransferMethod == GlobalSettings.TransferMethodType.AffinePIC) {
                     ParticleCont[i].cOperator_x = Settings.InitialTGVVelocity * new float2(
                         SinMultiplier.x * math.cos(SinMultiplier.x * ScaledPos.x) * math.cos(SinMultiplier.y * ScaledPos.y),   // du/dx
@@ -231,7 +224,6 @@ public partial class FluidSim : MonoBehaviour {
                         SinMultiplier.x * math.sin(SinMultiplier.x * ScaledPos.x) * math.sin(SinMultiplier.y * ScaledPos.y),   // dv/dx
                         -SinMultiplier.y * math.cos(SinMultiplier.x * ScaledPos.x) * math.cos(SinMultiplier.y * ScaledPos.y));  // dv/dy
                 }
->>>>>>> ee8689b5c40ab30064db718a37539292ae16117c
             }
 
             ParticleCont[i].SetGridPosVars(CellSize);
