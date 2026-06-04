@@ -75,7 +75,7 @@ public partial class FluidSim : MonoBehaviour {
             CellSize = CameraController.WorldHeight / GridHeight;
             GridSize = GridWidth * GridHeight;
             SimCentre = new float2(GridWidth, GridHeight) * CellSize / 2f;
-            Debug.Log("Cellsize is: " + CellSize);
+            //Debug.Log("Cellsize is: " + CellSize);
 
             GridMap = new Grid(GridSize, Settings.GridDimensions);
             SolidCellLookup = new int[GridSize];

@@ -14,44 +14,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GlobalSettings
   isRunning: 0
   GridDimensions:
-<<<<<<< HEAD
     x: 80
     y: 45
   ParticleCount: 6500
-=======
-    x: 34
-    y: 34
-  ParticleCount: 4096
->>>>>>> ee8689b5c40ab30064db718a37539292ae16117c
   RenderParticles: 1
   TimeStep: 0.016666668
   SyncTimeStepToSystem: 0
   UpdateTimeStepSafety: 0
-<<<<<<< HEAD
   PeriodicBCs: 0
   ProjectionStepSize: 0.005
   Stiffness: 0.5
   gMagnitude: 50
-=======
-  PeriodicBCs: 1
-  ProjectionStepSize: 0.005
-  Stiffness: 0
-  gMagnitude: 0
->>>>>>> ee8689b5c40ab30064db718a37539292ae16117c
   gDirection: 270
   MouseGravity: 0
-  PICFLIPRatio: 1
+  PICFLIPRatio: 0
   MouseRadius: 6
-<<<<<<< HEAD
   MouseStrength: 30
   SpawnType: 4
   InitialAngularMomentum: 1
   InitialTGVVelocity: 0
   TransferMethod: 2
-=======
-  MouseStrength: 22.2
-  SpawnType: 0
-  InitialAngularMomentum: 0
-  InitialTGVVelocity: 5
-  TransferMethod: 0
->>>>>>> ee8689b5c40ab30064db718a37539292ae16117c
