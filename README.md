@@ -128,23 +128,23 @@ To better navigate this project, please see below for the related folder structu
 CFD-APIC-Vortices                                                     
 └─ Assets                                                             
    ├─ Editor                                                            
-   │  └─ CustomInspector.cs                                           // Adds buttons to the inspector
-   ├─ Resources                                                       //
-   │  ├─ CircleMaterial.mat                                           // Circular mesh shape (2 triangles), used by every particle to achieve Instanced Procedural Drawing
-   │  └─ CircleShader.shader                                          // HLSL for drawing meshes to the GPU for each particle; colour depends on relative speed
-   ├─ Scripts                                                         //
-   │  ├─ CameraConfig.cs                                              // Scales the Unity camera so all cells fit neatly on the screen
-   │  ├─ Cell.cs                                                      // Class for the grid of cells: data for CGM and neighbourhood lookup (in 1D and 2D), weight calibration for BiLerp, buffers for FLIP and APIC
-   │  ├─ FluidSim.cs                                                  // Handles setup, rendering, and user inputs of the simulation: initialising grid & particles, constructing GPU buffers and quad-meshes, Unity gizmos for cell viewing
-   │  ├─ GlobalSettings.cs                                            // Class of all user-editable settings in the inspector, appropriate adjusting of simulation
-   │  ├─ GlobalSettingsResetter.cs                                    // Instantiates Settings buffer at runtime
-   │  ├─ Interpolation.cs                                             // Computes and transferring velocity and angular momentum (APIC) information between grid & particle representations, in parallel
-   │  ├─ ModeSwitcher.cs                                              // Buttons for switching between CFD regimes in real-time
-   │  ├─ Particle.cs                                                  // Structure for holding & computing particle data: grid location, momentum information, sub-structure for render information
-   │  ├─ PCG.cs                                                       // Preconditioned Conjugate Gradient Method (CGM): divergence calculations, neighbourhood lookup computation, Incomplete Cholesky Factorisation, PCG algorithm, pressure projection
-   │  ├─ Simulation.cs                                                // Runs the main simulation: applying user interactions & external forces, preparing and handling PCG, Runge-Kutta, cell & particle boundary conditions, tracking of global values
-   │  └─ VectorMatrix.cs                                              // Helper class for storing, retrieving, and efficiently operating on triangular matrices, operations for vectors, forward & backward substitution solvers
-   └─ Simulation Logs                                                 // Folder tracking global physical quantities over a simulation
+   │  └─ CustomInspector.cs        // Adds buttons to the inspector
+   ├─ Resources                    //
+   │  ├─ CircleMaterial.mat        // Circular mesh shape (2 triangles), used by every particle to achieve Instanced Procedural Drawing
+   │  └─ CircleShader.shader       // HLSL for drawing meshes to the GPU for each particle; colour depends on relative speed
+   ├─ Scripts                      //
+   │  ├─ CameraConfig.cs           // Scales the Unity camera so all cells fit neatly on the screen
+   │  ├─ Cell.cs                   // Class for the grid of cells: data for CGM and neighbourhood lookup (in 1D and 2D), weight calibration for BiLerp, buffers for FLIP and APIC
+   │  ├─ FluidSim.cs               // Handles setup, rendering, and user inputs of the simulation: initialising grid & particles, constructing GPU buffers and quad-meshes, Unity gizmos for cell viewing
+   │  ├─ GlobalSettings.cs         // Class of all user-editable settings in the inspector, appropriate adjusting of simulation
+   │  ├─ GlobalSettingsResetter.cs // Instantiates Settings buffer at runtime
+   │  ├─ Interpolation.cs          // Computes and transferring velocity and angular momentum (APIC) information between grid & particle representations, in parallel
+   │  ├─ ModeSwitcher.cs           // Buttons for switching between CFD regimes in real-time
+   │  ├─ Particle.cs               // Structure for holding & computing particle data: grid location, momentum information, sub-structure for render information
+   │  ├─ PCG.cs                    // Preconditioned Conjugate Gradient Method (CGM): divergence calculations, neighbourhood lookup computation, Incomplete Cholesky Factorisation, PCG algorithm, pressure projection
+   │  ├─ Simulation.cs             // Runs the main simulation: applying user interactions & external forces, preparing and handling PCG, Runge-Kutta, cell & particle boundary conditions, tracking of global values
+   │  └─ VectorMatrix.cs           // Helper class for storing, retrieving, and efficiently operating on triangular matrices, operations for vectors, forward & backward substitution solvers
+   └─ Simulation Logs              // Folder tracking global physical quantities over a simulation
 ```
 
 ---
