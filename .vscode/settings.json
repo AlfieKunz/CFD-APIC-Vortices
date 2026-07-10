@@ -56,6 +56,6 @@
         "temp/": true,
         "Temp/": true
     },
-    "dotnet.defaultSolution": "APICComputationalFluidSimulation.sln",
+    "dotnet.defaultSolution": "CFD-APIC-Vortices.slnx",
     "omnisharp.enableEditorConfigSupport": true
 }

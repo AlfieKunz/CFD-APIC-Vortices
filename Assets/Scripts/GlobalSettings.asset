@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::GlobalSettings
   isRunning: 0
   GridDimensions:
-    x: 80
-    y: 45
-  ParticleCount: 6500
+    x: 48
+    y: 27
+  ParticleCount: 2088
   RenderParticles: 1
   TimeStep: 0.016666668
   SyncTimeStepToSystem: 0
@@ -28,9 +28,9 @@ MonoBehaviour:
   gDirection: 270
   MouseGravity: 0
   PICFLIPRatio: 0
-  MouseRadius: 6
+  MouseRadius: 5
   MouseStrength: 30
   SpawnType: 4
-  InitialAngularMomentum: 1
+  InitialAngularMomentum: 1.5
   InitialTGVVelocity: 0
   TransferMethod: 2

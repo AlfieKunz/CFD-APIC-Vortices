@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this code or data in your work, please cite the associated preprint."
+authors:
+- family-names: "Kunz"
+  given-names: "Alfie"
+title: "Real-time Simulations of Momentum-Conserving Vortices using Affine Velocity Approximations"
+version: 1.0.0
+date-released: 2026-04-05
+url: "https://github.com/AlfieKunz/CFD-APIC-Vortices"
