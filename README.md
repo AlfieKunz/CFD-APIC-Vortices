@@ -120,6 +120,7 @@ To install, simply clone this repository using the following terminal prompts.
 git clone https://github.com/AlfieKunz/CFD-APIC-Vortices
 cd CFD-APIC-Vortices
 ```
+Then, open Unity Hub, click 'Add Project from Disk', and navigate to the downloaded folder.
 
 Feel free to also fork this repository, open an issue, or submit pull requests. All contributions welcome! :)  
 To better navigate this project, please see below for the related folder structure.
